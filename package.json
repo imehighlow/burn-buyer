@@ -1,0 +1,55 @@
+{
+  "name": "burn-buyer",
+  "version": "1.0.0",
+  "description": "Burn Buyer - Complete SDK for buying and burning tokens on Pump.fun (Solana)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "echo \"No tests specified yet\" && exit 0",
+    "dev": "ts-node burnBuyer.ts"
+  },
+  "keywords": [
+    "burn-buyer",
+    "burn",
+    "buyer",
+    "pumpfun",
+    "pump.fun",
+    "solana",
+    "trading",
+    "dex",
+    "token",
+    "buy",
+    "sell",
+    "sdk",
+    "blockchain",
+    "web3"
+  ],
+  "author": "imehighlow",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/imehighlow/burn-buyer"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.29.0",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.87.6",
+    "bs58": "^6.0.0",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

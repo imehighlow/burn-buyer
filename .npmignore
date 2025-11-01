@@ -1,0 +1,31 @@
+# Source files (we only publish dist/)
+*.ts
+!*.d.ts
+
+# Config files
+tsconfig.json
+.env
+.env.example
+
+# IDE
+.vscode/
+.idea/
+
+# Testing
+coverage/
+*.test.ts
+*.spec.ts
+
+# Misc
+.DS_Store
+*.log
+.git/
+.gitignore
+
+# Documentation (except README)
+docs/
+examples/
+
+# Node
+node_modules/
+
