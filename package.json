@@ -6,11 +6,16 @@
   "types": "dist/index.d.ts",
   "files": [
     "dist",
+    "burnBuyer.ts",
+    "index.ts",
+    "tsconfig.json",
+    "pump-fun-idl.json",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run build",
     "test": "echo \"No tests specified yet\" && exit 0",
     "dev": "ts-node burnBuyer.ts"
@@ -42,12 +47,12 @@
     "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.98.4",
     "bs58": "^6.0.0",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@types/node": "^24.9.2",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "ts-node": "^10.9.2"
   },
   "engines": {
     "node": ">=16.0.0"
