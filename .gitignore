@@ -43,4 +43,5 @@ coverage/
 tmp/
 temp/
 *.log
+test.ts
 
