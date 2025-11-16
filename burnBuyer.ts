@@ -415,6 +415,11 @@ export async function buyToken(params: {
 
   log("Building transaction...");
   const transaction = new Transaction();
+  
+  // Get recent blockhash to prevent expiration
+  const { blockhash } = await connection.getLatestBlockhash("confirmed");
+  transaction.recentBlockhash = blockhash;
+  transaction.feePayer = wallet.publicKey;
 
   transaction.add(
     ComputeBudgetProgram.setComputeUnitPrice({
@@ -461,7 +466,7 @@ export async function buyToken(params: {
 
 export async function burnTokens(params: {
   mintAddress: string | PublicKey;
-  tokenAmount: number; // Raw amount (with decimals already applied, e.g., 1000000 for 1 token with 6 decimals)
+  tokenAmount: number | string | bigint; // Raw amount (with decimals already applied, e.g., 1000000 for 1 token with 6 decimals)
   privateKey?: string;
   rpcUrl?: string;
 }): Promise<{ signature: string; amountBurned: number }> {
@@ -485,8 +490,15 @@ export async function burnTokens(params: {
   const wallet = loadWallet(walletPrivateKey);
   log(`Wallet: ${wallet.publicKey.toBase58()}`);
 
+  // Get the mint's token program ID
+  const mintInfo = await connection.getAccountInfo(mint);
+  if (!mintInfo) {
+    throw new Error("Mint account does not exist");
+  }
+  const tokenProgramId = mintInfo.owner;
+
   // Get the token account address
-  const tokenAccount = await getAssociatedTokenAddress(mint, wallet.publicKey);
+  const tokenAccount = await getAssociatedTokenAddress(mint, wallet.publicKey, false, tokenProgramId);
   
   // Check if token account exists
   const tokenAccountInfo = await connection.getAccountInfo(tokenAccount);
@@ -494,10 +506,22 @@ export async function burnTokens(params: {
     throw new Error("Token account does not exist. You don't have any tokens to burn.");
   }
 
-  log(`Burning ${tokenAmount} tokens from ${tokenAccount.toBase58()}...`);
+  // Convert tokenAmount to bigint to avoid precision issues with large numbers
+  const burnAmount = typeof tokenAmount === 'bigint' 
+    ? tokenAmount 
+    : typeof tokenAmount === 'string' 
+      ? BigInt(tokenAmount) 
+      : BigInt(Math.floor(tokenAmount));
+
+  log(`Burning ${burnAmount.toString()} tokens from ${tokenAccount.toBase58()}...`);
 
   // Build transaction
   const transaction = new Transaction();
+  
+  // Get recent blockhash to prevent expiration
+  const { blockhash } = await connection.getLatestBlockhash("confirmed");
+  transaction.recentBlockhash = blockhash;
+  transaction.feePayer = wallet.publicKey;
 
   // Add priority fee
   transaction.add(
@@ -511,9 +535,9 @@ export async function burnTokens(params: {
     tokenAccount,     // Token account to burn from
     mint,            // Mint
     wallet.publicKey, // Owner of the token account
-    tokenAmount,     // Amount to burn
+    burnAmount,      // Amount to burn (as bigint)
     [],              // Multi-signers (empty for single signer)
-    TOKEN_PROGRAM_ID
+    tokenProgramId   // Use the mint's token program ID
   );
 
   transaction.add(burnInstruction);
@@ -529,11 +553,11 @@ export async function burnTokens(params: {
     }
   );
 
-  log(`🔥 Success! Burned ${tokenAmount} tokens. TX: ${signature}`);
+  log(`🔥 Success! Burned ${burnAmount.toString()} tokens. TX: ${signature}`);
 
   return {
     signature,
-    amountBurned: tokenAmount
+    amountBurned: Number(burnAmount)
   };
 }
 
