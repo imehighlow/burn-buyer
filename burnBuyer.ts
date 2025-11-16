@@ -7,7 +7,7 @@ try {
   // .env file is optional
 }
 
-import { PublicKey, Connection, TransactionInstruction, SystemProgram, Transaction, Keypair, sendAndConfirmTransaction, ComputeBudgetProgram } from "@solana/web3.js";
+import { PublicKey, Connection, TransactionInstruction, SystemProgram, Transaction, Keypair, sendAndConfirmTransaction, ComputeBudgetProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
 import * as crypto from "crypto";
 import bs58 from "bs58";
@@ -27,7 +27,7 @@ const MIN_BALANCE_BUFFER = 5000;
 const PUMPFUN_PROGRAM_ID = new PublicKey(DEFAULT_PUMPFUN_PROGRAM_ID);
 
 
-export function deriveBondingCurvePDA(mint: PublicKey): [PublicKey, number] {
+function deriveBondingCurvePDA(mint: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [
       Buffer.from("bonding-curve"),
@@ -37,35 +37,35 @@ export function deriveBondingCurvePDA(mint: PublicKey): [PublicKey, number] {
   );
 }
 
-export function deriveGlobalPDA(): [PublicKey, number] {
+function deriveGlobalPDA(): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("global")],
     PUMPFUN_PROGRAM_ID
   );
 }
 
-export function deriveGlobalVolumeAccumulatorPDA(): [PublicKey, number] {
+function deriveGlobalVolumeAccumulatorPDA(): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("global_volume_accumulator")],
     PUMPFUN_PROGRAM_ID
   );
 }
 
-export function deriveCreatorVaultPDA(creator: PublicKey): [PublicKey, number] {
+function deriveCreatorVaultPDA(creator: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("creator-vault"), creator.toBuffer()],
     PUMPFUN_PROGRAM_ID
   );
 }
 
-export function deriveUserVolumeAccumulatorPDA(user: PublicKey): [PublicKey, number] {
+function deriveUserVolumeAccumulatorPDA(user: PublicKey): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("user_volume_accumulator"), user.toBuffer()],
     PUMPFUN_PROGRAM_ID
   );
 }
 
-export function deriveFeeConfigPDA(): [PublicKey, number] {
+function deriveFeeConfigPDA(): [PublicKey, number] {
   const PUMP_FEE_PROGRAM = new PublicKey("pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ");
   return PublicKey.findProgramAddressSync(
     [Buffer.from("fee_config"), PUMPFUN_PROGRAM_ID.toBuffer()],
@@ -73,14 +73,14 @@ export function deriveFeeConfigPDA(): [PublicKey, number] {
   );
 }
 
-export function deriveEventAuthorityPDA(): [PublicKey, number] {
+function deriveEventAuthorityPDA(): [PublicKey, number] {
   return PublicKey.findProgramAddressSync(
     [Buffer.from("__event_authority")],
     PUMPFUN_PROGRAM_ID
   );
 }
 
-export function getProgramPDA(): PublicKey {
+function getProgramPDA(): PublicKey {
   return PUMPFUN_PROGRAM_ID;
 }
 
@@ -105,7 +105,7 @@ export interface BondingCurve {
   creator: PublicKey;
 }
 
-export async function fetchGlobalState(
+async function fetchGlobalState(
   connection: Connection
 ): Promise<GlobalState | null> {
   const [globalPDA] = deriveGlobalPDA();
@@ -155,7 +155,7 @@ export async function fetchGlobalState(
   };
 }
 
-export async function fetchBondingCurve(
+async function fetchBondingCurve(
   connection: Connection,
   mint: PublicKey
 ): Promise<BondingCurve | null> {
@@ -205,46 +205,59 @@ export async function fetchBondingCurve(
   };
 }
 
-export async function getUserAssociatedTokenAddress(
+async function getUserAssociatedTokenAddress(
   mint: PublicKey,
-  user: PublicKey
+  user: PublicKey,
+  tokenProgramId: PublicKey = TOKEN_PROGRAM_ID
 ): Promise<PublicKey> {
-  return getAssociatedTokenAddress(mint, user);
+  return getAssociatedTokenAddress(mint, user, false, tokenProgramId);
 }
 
-export async function getBondingCurveAssociatedTokenAddress(
+async function getBondingCurveAssociatedTokenAddress(
   mint: PublicKey,
-  bondingCurve: PublicKey
+  bondingCurve: PublicKey,
+  tokenProgramId: PublicKey = TOKEN_PROGRAM_ID
 ): Promise<PublicKey> {
-  return getAssociatedTokenAddress(mint, bondingCurve, true);
+  return getAssociatedTokenAddress(mint, bondingCurve, true, tokenProgramId);
 }
 
-export async function userTokenAccountExists(
+async function userTokenAccountExists(
   connection: Connection,
   mint: PublicKey,
-  user: PublicKey
+  user: PublicKey,
+  tokenProgramId: PublicKey = TOKEN_PROGRAM_ID
 ): Promise<boolean> {
-  const ata = await getUserAssociatedTokenAddress(mint, user);
+  const ata = await getUserAssociatedTokenAddress(mint, user, tokenProgramId);
   const accountInfo = await connection.getAccountInfo(ata);
   return accountInfo !== null;
 }
 
-export async function createUserTokenAccountIfNeeded(
+async function createUserTokenAccountIfNeeded(
   connection: Connection,
   mint: PublicKey,
   user: PublicKey
 ): Promise<ReturnType<typeof createAssociatedTokenAccountInstruction> | null> {
-  const exists = await userTokenAccountExists(connection, mint, user);
+  // Verify mint account exists and get its program ID
+  const mintInfo = await connection.getAccountInfo(mint);
+  if (!mintInfo) {
+    throw new Error("Mint account does not exist");
+  }
+  
+  // Use the mint's owner program ID (should be TOKEN_PROGRAM_ID for standard tokens)
+  const tokenProgramId = mintInfo.owner;
+  
+  const exists = await userTokenAccountExists(connection, mint, user, tokenProgramId);
   if (exists) {
     return null;
   }
   
-  const ata = await getUserAssociatedTokenAddress(mint, user);
+  const ata = await getUserAssociatedTokenAddress(mint, user, tokenProgramId);
   return createAssociatedTokenAccountInstruction(
     user,
     ata,
     user,
-    mint
+    mint,
+    tokenProgramId
   );
 }
 
@@ -254,7 +267,7 @@ function getInstructionDiscriminator(name: string): Buffer {
   return hash.subarray(0, 8);
 }
 
-export function calculateTokensOut(bondingCurve: BondingCurve, solIn: BN, feeBasisPoints: BN): BN {
+function calculateTokensOut(bondingCurve: BondingCurve, solIn: BN, feeBasisPoints: BN): BN {
   const fee = solIn.mul(feeBasisPoints).div(new BN(10000));
   const solInAfterFee = solIn.sub(fee);
   
@@ -268,15 +281,16 @@ export function calculateTokensOut(bondingCurve: BondingCurve, solIn: BN, feeBas
   return tokensOut;
 }
 
-export async function buildBuyInstruction(params: {
+async function buildBuyInstruction(params: {
   mint: PublicKey;
   user: PublicKey;
   amount: BN;
   maxSolCost: BN;
   globalState: GlobalState;
   bondingCurve: BondingCurve;
+  connection: Connection;
 }): Promise<TransactionInstruction> {
-  const { mint, user, amount, maxSolCost, globalState, bondingCurve } = params;
+  const { mint, user, amount, maxSolCost, globalState, bondingCurve, connection } = params;
 
   const [globalPDA] = deriveGlobalPDA();
   const [bondingCurvePDA] = deriveBondingCurvePDA(mint);
@@ -287,8 +301,15 @@ export async function buildBuyInstruction(params: {
   const [feeConfigPDA] = deriveFeeConfigPDA();
   const PUMP_FEE_PROGRAM = new PublicKey("pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ");
 
-  const userATA = await getUserAssociatedTokenAddress(mint, user);
-  const bondingCurveATA = await getBondingCurveAssociatedTokenAddress(mint, bondingCurvePDA);
+  // Get the mint's token program ID
+  const mintInfo = await connection.getAccountInfo(mint);
+  if (!mintInfo) {
+    throw new Error("Mint account does not exist");
+  }
+  const tokenProgramId = mintInfo.owner;
+
+  const userATA = await getUserAssociatedTokenAddress(mint, user, tokenProgramId);
+  const bondingCurveATA = await getBondingCurveAssociatedTokenAddress(mint, bondingCurvePDA, tokenProgramId);
 
   const discriminator = getInstructionDiscriminator("buy");
 
@@ -315,7 +336,7 @@ export async function buildBuyInstruction(params: {
       { pubkey: userATA, isSigner: false, isWritable: true },
       { pubkey: user, isSigner: true, isWritable: true },
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: tokenProgramId, isSigner: false, isWritable: false },
       { pubkey: creatorVaultPDA, isSigner: false, isWritable: true },
       { pubkey: eventAuthorityPDA, isSigner: false, isWritable: false },
       { pubkey: PUMPFUN_PROGRAM_ID, isSigner: false, isWritable: false },
@@ -328,7 +349,7 @@ export async function buildBuyInstruction(params: {
   });
 }
 
-export function loadWallet(privateKeyBase58: string): Keypair {
+function loadWallet(privateKeyBase58: string): Keypair {
   try {
     const privateKeyBytes = Buffer.from(bs58.decode(privateKeyBase58));
     return Keypair.fromSecretKey(privateKeyBytes);
@@ -413,6 +434,7 @@ export async function buyToken(params: {
     maxSolCost,
     globalState,
     bondingCurve: bondingCurveData,
+    connection,
   });
 
   transaction.add(buyInstruction);
@@ -515,8 +537,8 @@ export async function burnTokens(params: {
   };
 }
 
-// Export configuration constants
-export const config = {
+// Configuration constants (internal)
+const config = {
   DEFAULT_SOLANA_RPC_URL,
   PUMPFUN_PROGRAM_ID,
   DEFAULT_PRIORITY_FEE_MICROLAMPORTS,
